@@ -40,6 +40,9 @@
         :sort-by.sync="table_settings.sortBy"
         :sort-desc.sync="table_settings.sortDesc"
         :busy="table_settings.isBusy">
+        <template v-slot:cell(name)="data">
+          <b-link :to="{name: 'viewPublicProject', params: {org_id: data.item.organization, id: data.item.id}}">{{ data.item.name }}</b-link>
+        </template>
         <!-- spinner -->
         <div slot="table-busy" class="text-center text-primary my-2">
           <b-spinner type="grow" variant="primary" class="align-middle"></b-spinner>
