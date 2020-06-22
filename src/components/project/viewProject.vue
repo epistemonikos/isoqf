@@ -89,6 +89,9 @@
             <b-col
               cols="12">
               <h4 class="mt-5">STEP 1: Upload the references for your included Studies (required)</h4>
+              <import-from
+                :references="references"></import-from>
+              <!--
               <p class="font-weight-light">
                 You must import only the references for your final list of included studies
               </p>
@@ -215,6 +218,7 @@
                   </b-card>
                 </b-col>
               </b-row>
+              -->
             </b-col>
             <b-col
               cols="12"
@@ -1770,12 +1774,14 @@ import parser from '../../plugins/parser'
 import organizationForm from '../organization/organizationForm'
 import _debounce from 'lodash.debounce'
 import backToTop from '../backToTop'
+import importFrom from '../importFrom'
 
 export default {
   components: {
     draggable,
     organizationForm,
-    'back-to-top': backToTop
+    'back-to-top': backToTop,
+    'import-from': importFrom
   },
   data () {
     return {
