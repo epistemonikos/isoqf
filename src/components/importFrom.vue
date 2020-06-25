@@ -337,8 +337,7 @@ export default {
             }
           },
           { key: 'action', label: '' }
-        ],
-
+        ]
     }
   },
   mounted: function () {
