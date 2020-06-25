@@ -419,6 +419,12 @@ export default {
     },
     references: function () {
       this.local_references = this.references
+    },
+    charsOfStudies: function () {
+      this.local_charsOfStudies = this.charsOfStudies
+    },
+    methodologicalTableRefs: function () {
+      this.local_methodologicalTableRefs = this.methodologicalTableRefs
     }
   },
   methods: {
@@ -426,8 +432,6 @@ export default {
       this.local_references = this.references
       this.local_modalRefs = this.modalRefs
       this.local_lists = this.lists
-      this.local_charsOfStudies = this.charsOfStudies
-      this.local_methodologicalTableRefs = this.methodologicalTableRefs
     },
     loadRefs: function (event) {
       const file = event.target.files[0]
@@ -683,12 +687,12 @@ export default {
           })
       }
       axios.all(requests)
-        .then((responses) => {
+        .then(axios.spread((responses) => {
           this.$emit('get-references')// this.getReferences()
           this.$emit('get-project') // this.getProject()
           this.$emit('reset-data')// this.resetData()
           this.$refs['modal-references'].hide()
-        })
+        }))
     },
     confirmRemoveReferenceById: function (refId) {
       let lists = JSON.parse(JSON.stringify(this.local_lists))
