@@ -92,7 +92,7 @@
         <b-card
           bg-variant="light">
           <template
-            v-if="loadReferences">
+            v-if="local_loadReferences">
             <div class="text-center text-danger my-2">
               <b-spinner class="align-middle"></b-spinner>
               <strong>Loading...</strong>
@@ -126,6 +126,145 @@
         </b-card>
       </b-col>
     </b-row>
+
+    <b-modal
+      v-if="selected_list_index >= 0"
+      id="modal-references-list"
+      ref="modal-references-list"
+      title="References"
+      @ok="saveReferencesList"
+      ok-title="Save"
+      ok-variant="outline-success"
+      cancel-variant="outline-secondary"
+      size="xl"
+      scrollable>
+      <template v-if="local_references.length">
+        <div
+          class="mt-2">
+          <b-alert
+            v-if="showBanner"
+            show
+            variant="danger">
+            <b>Warning!</b> By removing a reference you are modifying the underlining evidence base for this finding and will need to review your GRADE-CERQual assessments. If you remove the reference, the extracted data you inputted from this study to support this finding will be deleted from the GRADE-CERQual Assessment Worksheet.
+          </b-alert>
+          <b-table
+            responsive
+            striped
+            :fields="[{key: 'checkbox', label: ''}, {key: 'content', label:'Author(s), Year, Title'}]"
+            :items="local_modalRefs">
+            <template v-slot:cell(checkbox)="data">
+              <b-form-checkbox
+                :id="`checkbox-${data.index}`"
+                v-model="selected_references"
+                :name="`checkbox-${data.index}`"
+                :value="data.item.id">
+              </b-form-checkbox>
+            </template>
+          </b-table>
+        </div>
+      </template>
+      <template v-else>
+        <div
+          class="mt-2">
+          <p>To select references, first upload your full reference list by clicking "Import References" next to the search bar.</p>
+        </div>
+      </template>
+    </b-modal>
+
+    <b-modal
+        id="modal-references"
+        ref="modal-references"
+        title="References"
+        size="xl"
+        @ok="getProject"
+        @cancel="confirmRemoveAllReferences($event)"
+        scrollable
+        ok-variant="outline-success"
+        ok-title="Close"
+        cancel-variant="outline-danger"
+        cancel-title="Remove all references"
+        :cancel-disabled="disableBtnRemoveAllRefs">
+        <template v-if="appearMsgRemoveReferences">
+          <b-row>
+            <b-col
+              cols="12">
+              <p>This action will remove all the references</p>
+            </b-col>
+          </b-row>
+          <b-row>
+            <b-col
+              cols="6">
+              <b-button
+                block
+                @click="removeAllReferences"
+                variant="outline-danger">
+                Continue
+              </b-button>
+            </b-col>
+            <b-col
+              cols="6">
+              <b-button
+                block
+                @click="appearMsgRemoveReferences = false"
+                variant="outline-success">
+                Cancel
+              </b-button>
+            </b-col>
+          </b-row>
+        </template>
+        <template v-else>
+          <div
+            class="mt-2"
+            v-if="local_references.length">
+            <p>Below are the references you have uploaded.</p>
+            <b-table
+              sort-by="authors"
+              responsive
+              hover
+              bordered
+              borderless
+              striped
+              :fields="fields_references_table"
+              :items="local_references">
+              <template v-slot:cell(action)="data">
+                <b-button
+                  variant="outline-danger"
+                  @click="data.toggleDetails">
+                  <font-awesome-icon
+                    icon="trash"></font-awesome-icon>
+                </b-button>
+              </template>
+              <template v-slot:row-details="data">
+                <b-card>
+                  <p>You are about to exclude a study from your review. This will delete it, and all associated information, from all tables in iSoQ. If you exclude this study please remember to redo your GRADE-CERQual assessments for all findings that it supported.</p>
+                  <p>{{ findRelatedFindings(data.item.id) }}</p>
+                  <p>Are you sure you want to delete this reference?</p>
+                  <b-container>
+                    <b-row>
+                      <b-col
+                        cols="12"
+                        md="6">
+                        <b-button
+                          block
+                          variant="outline-success"
+                          @click="data.toggleDetails">No</b-button>
+                      </b-col>
+                      <b-col
+                        cols="12"
+                        md="6">
+                        <b-button
+                          block
+                          variant="outline-danger"
+                          @click="confirmRemoveReferenceById(data.item.id)">Yes</b-button>
+                      </b-col>
+                    </b-row>
+                  </b-container>
+                </b-card>
+              </template>
+            </b-table>
+          </div>
+        </template>
+      </b-modal>
   </div>
 </template>
 
@@ -135,12 +274,20 @@ import axios from 'axios'
 export default {
   name: 'importFrom',
   props: {
-    references: Array
+    references: Array,
+    loadReferences: Boolean,
+    modalRefs: Array,
+    lists: Array,
+    charsOfStudies: Object,
+    methodologicalTableRefs: Object
   },
   data: function () {
     return {
-      local_references: this.references || [],
-      loadReferences: true,
+      local_lists: Array,
+      local_references: [],
+      local_charsOfStudies: Object,
+      local_methodologicalTableRefs: Object,
+      local_loadReferences: true,
       pre_references: '',
       fileReferences: [],
       episte_request: '',
@@ -148,8 +295,54 @@ export default {
       episte_selected: [],
       episte_loading: false,
       episte_error: false,
-      msgUploadReferences: ''
+      msgUploadReferences: '',
+      showBanner: false,
+      local_modalRefs: [],
+      selected_references: [],
+      finding: {},
+      selected_list_index: null,
+      disableBtnRemoveAllRefs: false,
+      appearMsgRemoveReferences: false,
+      fields_references_table:
+        [
+          {
+            key: 'authors',
+            label: 'Author(s)',
+            formatter: value => {
+              if (value.length < 1) {
+                return 'no author(s)'
+              } else if (value.length === 1) {
+                return value[0].split(',')[0]
+              } else if (value.length === 2) {
+                return value[0].split(',')[0] + ' & ' + value[1].split(',')[0]
+              } else {
+                return value[0].split(',')[0] + ' et al.'
+              }
+            }
+          },
+          { key: 'publication_year', label: 'Year' },
+          {
+            key: 'id',
+            label: 'Related to finding(s)',
+            formatter: value => {
+              let findings = []
+              for (let list of this.lists) {
+                for (let ref of list.raw_ref) {
+                  if (ref.id === value) {
+                    findings.push(`#${list.isoqf_id}`)
+                  }
+                }
+              }
+              return findings.join(', ')
+            }
+          },
+          { key: 'action', label: '' }
+        ],
+
     }
+  },
+  mounted: function () {
+    this.loadData()
   },
   watch: {
     pre_references: function (data) {
@@ -220,9 +413,22 @@ export default {
           base = { authors: [], user_definable: [] }
         }
       })
+    },
+    loadReferences: function () {
+      this.local_loadReferences = this.loadReferences
+    },
+    references: function () {
+      this.local_references = this.references
     }
   },
   methods: {
+    loadData: function () {
+      this.local_references = this.references
+      this.local_modalRefs = this.modalRefs
+      this.local_lists = this.lists
+      this.local_charsOfStudies = this.charsOfStudies
+      this.local_methodologicalTableRefs = this.methodologicalTableRefs
+    },
     loadRefs: function (event) {
       const file = event.target.files[0]
       const reader = new FileReader()
@@ -232,7 +438,6 @@ export default {
       reader.readAsText(file)
     },
     saveReferences: function (from = '') {
-      this.loadReferences = true
       let references = ''
       if (!from) {
         references = this.fileReferences
@@ -263,12 +468,7 @@ export default {
       }
       axios.all(axiosArray)
         .then((responses) => {
-          let cnt = 0
-          for (let response of responses) {
-            const data = response.data
-            this.local_references.push(data)
-            cnt++
-          }
+          let cnt = responses.length
           const _references = JSON.parse(JSON.stringify(this.local_references))
           this.prefetchDataForExtractedDataUpdate(_references)
 
@@ -299,7 +499,7 @@ export default {
           this.updateExtractedDataReferences(_requestExtractedData, references)
         })
         .catch((error) => {
-          this.printErrors(error)
+          this.emit('print-error', error)// this.printErrors(error)
         })
     },
     updateExtractedDataReferences: function (querys = [], references = []) {
@@ -338,7 +538,7 @@ export default {
                 axios.all(patchExtractedData)
                   .then((responses) => {})
                   .catch((error) => {
-                    // this.printErrors(error)
+                    // this.emit('print-error', error)// this.printErrors(error)
                     console.log(error)
                   })
               }
@@ -372,10 +572,224 @@ export default {
             this.episte_loading = false
             this.episte_error = true
             document.getElementById('btnEpisteRequest').disabled = false
-            // this.printErrors(error)
+            // this.emit('print-error', error)// this.printErrors(error)
             console.log(error)
           })
       })
+    },
+    openModalReferencesSingle: function () {
+      this.$emit('get-references')// this.getReferences(false)
+      this.msgUploadReferences = ''
+      this.appearMsgRemoveReferences = false
+      this.disableBtnRemoveAllRefs = false
+      this.$refs['modal-references'].show()
+    },
+    saveReferencesList: function () {
+      this.loadReferences = true
+      this.table_settings.isBusy = true
+      const params = {
+        references: this.selected_references
+      }
+      axios.patch(`/api/isoqf_lists/${this.lists[this.selected_list_index].id}`, params)
+        .then((response) => {
+          this.updateFindingReferences(this.selected_references)
+          this.selected_references = []
+          this.selected_list_index = null
+          this.$emit('get-references')// this.getReferences()
+          this.$emit('get-lists')// this.getLists()
+        })
+        .catch((error) => {
+          this.emit('print-error', error)// this.printErrors(error)
+        })
+    },
+    updateFindingReferences: function (references) {
+      const params = {
+        'evidence_profile.references': references
+      }
+      axios.patch(`/api/isoqf_findings/${this.finding.id}`, params)
+        .then((response) => {
+          this.finding = {}
+        })
+        .catch((error) => {
+          this.emit('print-error', error)// this.printErrors(error)
+        })
+    },
+    getProject: function () {
+      this.$emit('get-project')
+    },
+    confirmRemoveAllReferences: function (event) {
+      event.preventDefault()
+      this.appearMsgRemoveReferences = true
+      this.disableBtnRemoveAllRefs = true
+    },
+    findRelatedFindings: function (refId = null) {
+      if (refId) {
+        let findings = []
+        for (let list of this.lists) {
+          for (let ref of list.raw_ref) {
+            if (ref.id === refId) {
+              findings.push(`#${list.isoqf_id}`)
+            }
+          }
+        }
+        if (findings.length) {
+          return 'The findings affected are: ' + findings.join(', ')
+        } else {
+          return 'No findings will be affected.'
+        }
+      }
+    },
+    removeAllReferences: function () {
+      let _lists = JSON.parse(JSON.stringify(this.local_lists))
+      const _charsOfStudies = JSON.parse(JSON.stringify(this.local_charsOfStudies))
+      const _assessments = JSON.parse(JSON.stringify(this.local_methodologicalTableRefs))
+      const _references = JSON.parse(JSON.stringify(this.local_references))
+      let requests = []
+
+      if (Object.prototype.hasOwnProperty.call(_charsOfStudies, 'id')) {
+        requests.push(axios.delete(`/api/isoqf_characteristics/${_charsOfStudies.id}`))
+      }
+      if (Object.prototype.hasOwnProperty.call(_assessments, 'id')) {
+        requests.push(axios.delete(`/api/isoqf_assessments/${_assessments.id}`))
+      }
+      for (let reference of _references) {
+        requests.push(axios.delete(`/api/isoqf_references/${reference.id}`))
+      }
+
+      let _requestFindings = []
+      for (let list of _lists) {
+        _requestFindings.push(axios.get(`/api/isoqf_findings?organization=${this.$route.params.org_id}&list_id=${list.id}`))
+        list.references = []
+        axios.patch(`/api/isoqf_lists/${list.id}`, list)
+          .then((response) => {})
+          .catch((error) => {
+            this.emit('print-error', error)// this.printErrors(error)
+          })
+      }
+      if (_requestFindings.length) {
+        axios.all(_requestFindings)
+          .then((responses) => {
+            let getExtractedData = []
+            for (let response of responses) {
+              let finding = response.data[0]
+              getExtractedData.push(axios.get(`/api/isoqf_extracted_data/?organization=${this.$route.params.org_id}&finding_id=${finding.id}`))
+            }
+            if (getExtractedData.length) {
+              this.getAndDeleteExtractedData(getExtractedData)
+            }
+          })
+          .catch((error) => {
+            this.emit('print-error', error)// this.printErrors(error)
+          })
+      }
+      axios.all(requests)
+        .then((responses) => {
+          this.$emit('get-references')// this.getReferences()
+          this.$emit('get-project') // this.getProject()
+          this.$emit('reset-data')// this.resetData()
+          this.$refs['modal-references'].hide()
+        })
+    },
+    confirmRemoveReferenceById: function (refId) {
+      let lists = JSON.parse(JSON.stringify(this.local_lists))
+      let _charsOfStudies = JSON.parse(JSON.stringify(this.local_charsOfStudies))
+      let _assessments = JSON.parse(JSON.stringify(this.local_methodologicalTableRefs))
+      let objs = []
+
+      for (let list of lists) {
+        let obj = {id: null, references: []}
+        for (let rr of list.raw_ref) {
+          if (rr.id !== refId) {
+            obj.references.push(rr.id)
+          }
+          if (rr.id === refId) {
+            obj.id = list.id
+            objs.push(obj)
+          }
+        }
+      }
+      let requests = []
+
+      if (Object.prototype.hasOwnProperty.call(_charsOfStudies, 'id')) {
+        if (_charsOfStudies.items.length) {
+          let items = []
+
+          for (let item of _charsOfStudies.items) {
+            if (item.ref_id !== refId) {
+              items.push(item)
+            }
+          }
+          _charsOfStudies.items = items
+
+          requests.push(axios.patch(`/api/isoqf_characteristics/${_charsOfStudies.id}`, _charsOfStudies))
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(_assessments, 'id')) {
+        if (_assessments.items.length) {
+          let items = []
+
+          for (let item of _assessments.items) {
+            if (item.ref_id !== refId) {
+              items.push(item)
+            }
+          }
+          _assessments.items = items
+
+          requests.push(axios.patch(`/api/isoqf_assessments/${_assessments.id}`, _assessments))
+        }
+      }
+
+      for (let o of objs) {
+        requests.push(axios.patch(`/api/isoqf_lists/${o.id}`, {references: o.references}))
+      }
+
+      if (requests.length) {
+        axios.all(requests)
+          .then(axios.spread(function (response) {}))
+      }
+
+      axios.delete(`/api/isoqf_references/${refId}`)
+        .then((response) => {
+          this.$emit('get-references')// this.getReferences(false)
+          this.$emit('get-project')// this.getProject()
+        })
+    },
+    getAndDeleteExtractedData: function (requests) {
+      if (requests.length) {
+        axios.all(requests)
+          .then((responses) => {
+            for (let response of responses) {
+              let data = response.data[0]
+              axios.patch(`/api/isoqf_extracted_data/${data.id}`, { items: [] })
+                .then((response) => {})
+                .catch((error) => {
+                  this.$emit('print-error', error)// this.printErrors(error)
+                })
+            }
+          })
+      }
+    },
+    parseReference: (reference, onlyAuthors = false, hasSemicolon = true) => {
+      let result = ''
+      const semicolon = hasSemicolon ? '; ' : ''
+      if (Object.prototype.hasOwnProperty.call(reference, 'authors')) {
+        if (reference.authors.length) {
+          if (reference.authors.length === 1) {
+            result = reference.authors[0].split(',')[0] + ' ' + reference.publication_year + semicolon
+          } else if (reference.authors.length === 2) {
+            result = reference.authors[0].split(',')[0] + ' & ' + reference.authors[1].split(',')[0] + ' ' + reference.publication_year + semicolon
+          } else {
+            result = reference.authors[0].split(',')[0] + ' et al. ' + reference.publication_year + semicolon
+          }
+          if (!onlyAuthors) {
+            result = result + reference.title
+          }
+        } else {
+          return 'author(s) not found'
+        }
+      }
+      return result
     }
   }
 }
