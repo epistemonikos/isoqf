@@ -102,7 +102,7 @@
             <b-row v-if="!local_references.length">
               <b-col
                 cols="12">
-                  <p>No references have been uploaded</p>
+                  <p class="my-1">No references have been uploaded</p>
               </b-col>
             </b-row>
             <b-row v-else>
