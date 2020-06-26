@@ -36,7 +36,7 @@
                 You can import individual references from PubMed by pasting the references PMID below. The PMID is the 8-digit identification number appearing at the end of the web address for the article on PubMed. Add one PMID per line below and click Find.
               </p>
               <b-form-textarea
-                v-model="episte_request"
+                v-model="importFrom_request"
                 placeholder="Ej: 17253524"
                 rows="6"
                 max-rows="100"></b-form-textarea>
@@ -45,26 +45,26 @@
                 class="mt-2"
                 block
                 variant="outline-primary"
-                @click="EpisteRequest">Find</b-button>
+                @click="ncbiRequest">Find</b-button>
             </b-col>
             <b-col
               sm="6">
               <template
-                v-if="episte_loading">
+                v-if="importFrom_loading">
                 <div class="text-center text-danger my-2">
                   <b-spinner class="align-middle"></b-spinner>
                   <strong>Loading...</strong>
                 </div>
               </template>
               <template
-                v-else-if="episte_error">
+                v-else-if="importFrom_error">
                 <p class="font-weight-light">
                   The reference could not be reached, try again or using other ID
                 </p>
               </template>
               <template v-else>
-                <ul v-if="episte_response.length">
-                  <li v-for="(r, index) in episte_response" :key="index">
+                <ul v-if="importFrom_response.length">
+                  <li v-for="(r, index) in importFrom_response" :key="index">
                     <b-form-checkbox
                       :id="`checkbox-${index}`"
                       v-model="episte_selected"
@@ -75,10 +75,10 @@
                   </li>
                 </ul>
                 <b-button
-                  v-if="episte_response.length"
+                  v-if="importFrom_response.length"
                   variant="outline-success"
                   block
-                  @click="saveReferences('EpisteDB')">Import references</b-button>
+                  @click="saveReferences('NCBI')">Import references</b-button>
               </template>
             </b-col>
           </b-row>
@@ -290,11 +290,11 @@ export default {
       local_loadReferences: true,
       pre_references: '',
       fileReferences: [],
-      episte_request: '',
-      episte_response: [],
+      importFrom_request: '',
+      importFrom_response: [],
       episte_selected: [],
-      episte_loading: false,
-      episte_error: false,
+      importFrom_loading: false,
+      importFrom_error: false,
       msgUploadReferences: '',
       showBanner: false,
       local_modalRefs: [],
@@ -442,18 +442,12 @@ export default {
     },
     saveReferences: function (from = '') {
       let references = ''
-      if (!from) {
+      if (from === '') {
         references = this.fileReferences
       } else {
         let _r = []
         for (let index of this.episte_selected) {
-          let content = JSON.parse(JSON.stringify(this.episte_response[index].content))
-          content.publication_year = content.year
-          delete (content.year)
-          content.isbn_issn = content.publication.ISSN
-          if (content.publication.type === 'journal') {
-            content.type = 'JOUR'
-          }
+          let content = JSON.parse(JSON.stringify(this.importFrom_response[index].content))
           _r.push(content)
         }
         references = _r
@@ -474,11 +468,11 @@ export default {
           let cnt = responses.length
           const _references = JSON.parse(JSON.stringify(this.local_references))
           this.prefetchDataForExtractedDataUpdate(_references)
-
           this.msgUploadReferences = `${cnt} references have been added.`
           this.pre_references = ''
           this.fileReferences = []
-          this.episte_response = []
+          this.importFrom_response = []
+          this.importFrom_request = ''
           this.$emit('get-references') // this.getReferences(false)
         })
         .catch((error) => {
@@ -549,12 +543,55 @@ export default {
         }
       }
     },
+    ncbiRequest: function () {
+      document.getElementById('btnEpisteRequest').disabled = true
+      this.importFrom_loading = true
+      this.importFrom_error = false
+      this.importFrom_response = []
+      const allLines = this.importFrom_request.split(/\r\n|\n/)
+      let _requests = []
+      allLines.forEach((line, index) => {
+        _requests.push(axios.get(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&id=${line}&api_key=abdb2d5a30084a5a7200df1515d45fb36f08`))
+      })
+      if (_requests.length) {
+        axios.all(_requests)
+          .then(axios.spread((...responses) => {
+            for (let response of responses) {
+              const uid = response.data.result.uids[0]
+              const data = response.data.result[uid]
+              let obj = {}
+              const _authors = response.data.result[uid].authors
+              let authors = []
+              for (let author of _authors) {
+                authors.push(author.name)
+              }
+              const content = {
+                'type': 'JOUR',
+                'title': data.title,
+                'publication_year': data.pubdate,
+                'volume_number': data.volume,
+                'authors': authors,
+                'doi': data.elocationid,
+                'pages': data.pages,
+                'volume': data.volume,
+                'primary_author': data.sortfirstauthor
+              }
+
+              obj.citation = data.title
+              obj.content = content
+              this.importFrom_response.push(obj)
+              document.getElementById('btnEpisteRequest').disabled = false
+              this.importFrom_loading = false
+            }
+          }))
+      }
+    },
     EpisteRequest: function () {
       document.getElementById('btnEpisteRequest').disabled = true
-      this.episte_loading = true
-      this.episte_error = false
-      this.episte_response = []
-      const allLines = this.episte_request.split(/\r\n|\n/)
+      this.importFrom_loading = true
+      this.importFrom_error = false
+      this.importFrom_response = []
+      const allLines = this.importFrom_request.split(/\r\n|\n/)
       allLines.forEach((line, index) => {
         const instance = axios.create({
           withCredentials: true,
@@ -568,12 +605,12 @@ export default {
             let obj = {}
             obj.citation = response.data.citation
             obj.content = response.data.content
-            this.episte_response.push(obj)
+            this.importFrom_response.push(obj)
             document.getElementById('btnEpisteRequest').disabled = false
-            this.episte_loading = false
+            this.importFrom_loading = false
           }).catch((error) => {
-            this.episte_loading = false
-            this.episte_error = true
+            this.importFrom_loading = false
+            this.importFrom_error = true
             document.getElementById('btnEpisteRequest').disabled = false
             // this.emit('print-error', error)// this.printErrors(error)
             console.log(error)
