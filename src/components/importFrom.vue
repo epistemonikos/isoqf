@@ -126,7 +126,7 @@
         </b-card>
       </b-col>
     </b-row>
-
+<!--
     <b-modal
       v-if="selected_list_index >= 0"
       id="modal-references-list"
@@ -170,7 +170,11 @@
         </div>
       </template>
     </b-modal>
-
+-->
+    <modal-references-lists
+      :references="local_references"
+      :lists="local_lists">
+    </modal-references-lists>
     <b-modal
         id="modal-references"
         ref="modal-references"
@@ -270,9 +274,13 @@
 
 <script>
 import axios from 'axios'
+import modalReferencesList from './modalReferencesList'
 
 export default {
   name: 'importFrom',
+  components: {
+    'modal-references-lists': modalReferencesList
+  },
   props: {
     references: Array,
     loadReferences: Boolean,
@@ -283,7 +291,7 @@ export default {
   },
   data: function () {
     return {
-      local_lists: Array,
+      local_lists: [],
       local_references: [],
       local_charsOfStudies: Object,
       local_methodologicalTableRefs: Object,
@@ -300,7 +308,6 @@ export default {
       local_modalRefs: [],
       selected_references: [],
       finding: {},
-      selected_list_index: null,
       disableBtnRemoveAllRefs: false,
       appearMsgRemoveReferences: false,
       fields_references_table:
@@ -623,36 +630,6 @@ export default {
       this.appearMsgRemoveReferences = false
       this.disableBtnRemoveAllRefs = false
       this.$refs['modal-references'].show()
-    },
-    saveReferencesList: function () {
-      this.loadReferences = true
-      this.table_settings.isBusy = true
-      const params = {
-        references: this.selected_references
-      }
-      axios.patch(`/api/isoqf_lists/${this.lists[this.selected_list_index].id}`, params)
-        .then((response) => {
-          this.updateFindingReferences(this.selected_references)
-          this.selected_references = []
-          this.selected_list_index = null
-          this.$emit('get-references')// this.getReferences()
-          this.$emit('get-lists')// this.getLists()
-        })
-        .catch((error) => {
-          this.emit('print-error', error)// this.printErrors(error)
-        })
-    },
-    updateFindingReferences: function (references) {
-      const params = {
-        'evidence_profile.references': references
-      }
-      axios.patch(`/api/isoqf_findings/${this.finding.id}`, params)
-        .then((response) => {
-          this.finding = {}
-        })
-        .catch((error) => {
-          this.emit('print-error', error)// this.printErrors(error)
-        })
     },
     getProject: function () {
       this.$emit('get-project')

@@ -1470,6 +1470,10 @@
               <back-to-top></back-to-top>
             </b-col>
           </b-row>
+          <modal-references-lists
+            :references="references"
+            :lists="lists">
+          </modal-references-lists>
         </b-tab>
         <b-tab>
           <h3>Introduction to GRADE-CERQual</h3>
@@ -1532,13 +1536,15 @@ import organizationForm from '../organization/organizationForm'
 import _debounce from 'lodash.debounce'
 import backToTop from '../backToTop'
 import importFrom from '../importFrom'
+import modalReferencesList from '../modalReferencesList'
 
 export default {
   components: {
     draggable,
     organizationForm,
     'back-to-top': backToTop,
-    'import-from': importFrom
+    'import-from': importFrom,
+    'modal-references-lists': modalReferencesList
   },
   data () {
     return {
