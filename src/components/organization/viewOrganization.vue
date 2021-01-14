@@ -19,93 +19,80 @@
         </b-row>
         <b-row
           class="mt-3">
-          <!-- <b-col
-            v-if="(ui.copy.project || ui.copy.lists || ui.copy.references || ui.copy.findings || ui.copy.replaceReferences || ui.copy.copyOf || ui.copy.referencesTable)">
-            <b-alert
-              show
-              variant="warning">
-              <p class="text-center">The project is still copying information, please dont change or refresh this page until this warning dissapears</p>
-            </b-alert>
-          </b-col> -->
           <b-col
+            class="border pb-2 rounded-2"
             cols="12">
-            <b-table
-              id="organizations"
-              responsive
-              striped
-              bordered
-              hover
-              head-variant="light"
-              :busy="ui.projectTable.isBusy"
-              :fields="ui.projectTable.fields"
-              :items="projects"
-              sort-by="created_at"
-              :sort-desc="true">
-              <template v-slot:cell(private)="data">
+            <b-row
+              v-for="(project, index) in projects" :key="project.id"
+              class="pt-2"
+              :class="{'bg-light': (index%2===1)?true:false, 'bg-white': (index%2!==1)?true:false}">
+              <b-col
+                sm="1">
                 <b-badge
                   variant="light"
                   class="publish-status"
                   v-b-tooltip.hover
-                  :title="global_status.map((obj)=>{ if (obj.value === data.item.public_type) { return obj.text } })">
-                  {{ data.item.public_type }}
+                  :title="global_status.map((obj)=>{ if (obj.value === project.public_type) { return obj.text } })">
+                  {{ project.public_type }}
                 </b-badge>
-              </template>
-              <template v-slot:cell(name)="data">
+              </b-col>
+              <b-col
+                sm="7">
                 <b-link
                   class="link-project"
-                  :to="{name: 'viewProject', params: {org_id: data.item.organization, id: data.item.id}}">
-                  {{ data.item.name }}
+                  :to="{name: 'viewProject', params: {org_id: project.organization, id: project.id}}">
+                  {{ project.name }}
                 </b-link>
-              </template>
-              <template v-slot:cell(actions)="data">
+              </b-col>
+              <b-col
+                class="text-right"
+                sm="4">
                 <b-button
-                  v-if="data.item.is_owner || data.item.allow_to_write"
+                  v-if="project.is_owner || project.allow_to_write"
                   title="Duplicate"
                   variant="outline-secondary"
-                  @click="openCloneModal(data.index)">
+                  @click="openCloneModal(index)">
                   <font-awesome-icon
                     icon="copy"></font-awesome-icon>
                 </b-button>
+
                 <b-button
-                  v-if="data.item.is_owner && (data.item.sharedToken.length)"
+                  v-if="project.is_owner && (project.sharedToken.length)"
                   title="You have a temporary link enabled for this project. It will remain enabled until you manually switch it off. Click here to switch it off"
                   variant="outline-secondary"
-                  @click="modalShareOptions(data.index, 2)">
+                  @click="modalShareOptions(index, 2)">
                   <font-awesome-icon
                     icon="link"></font-awesome-icon>
                 </b-button>
+
                 <b-button
-                  v-if="data.item.is_owner || data.item.allow_to_write"
+                  v-if="project.is_owner || project.allow_to_write"
                   title="Share"
                   variant="outline-secondary"
-                  @click="modalShareOptions(data.index)">
+                  @click="modalShareOptions(index)">
                   <font-awesome-icon
                     icon="users"></font-awesome-icon>
                 </b-button>
+
                 <b-button
-                  v-if="data.item.allow_to_write"
+                  v-if="project.allow_to_write"
                   title="Edit"
                   variant="outline-success"
-                  @click="openModalEditProject(data.item)">
+                  @click="openModalEditProject(project)">
                   <font-awesome-icon
                     icon="edit"></font-awesome-icon>
                 </b-button>
+
                 <b-button
-                  v-if="data.item.is_owner"
+                  v-if="project.is_owner"
                   title="Remove"
                   variant="outline-danger"
-                  @click="modalRemoveProject(data.item)">
+                  @click="modalRemoveProject(project)">
                   <font-awesome-icon
                     icon="trash"></font-awesome-icon>
                 </b-button>
-              </template>
-              <template v-slot:table-busy>
-                <div class="text-center text-danger my-2">
-                  <b-spinner class="align-middle"></b-spinner>
-                  <strong>Loading...</strong>
-                </div>
-              </template>
-            </b-table>
+              </b-col>
+            </b-row>
           </b-col>
         </b-row>
       </div>
